@@ -24,6 +24,7 @@ from .const import CONF_SLEEP_PERIOD, DOMAIN, LOGGER
 from .coordinator import ShellyBlockCoordinator, ShellyConfigEntry, ShellyRpcCoordinator
 from .utils import (
     async_remove_shelly_entity,
+    get_block_channel_name,
     get_block_device_info,
     get_block_entity_name,
     get_rpc_device_info,
@@ -384,7 +385,7 @@ class ShellyBlockEntity(CoordinatorEntity[ShellyBlockCoordinator]):
         """Initialize Shelly entity."""
         super().__init__(coordinator)
         self.block = block
-        self._attr_name = get_block_entity_name(coordinator.device, block)
+        # self._attr_name = get_block_entity_name(coordinator.device, block)
         self._attr_device_info = get_entity_block_device_info(coordinator, block)
         self._attr_unique_id = f"{coordinator.mac}-{block.description}"
 
@@ -479,10 +480,16 @@ class ShellyBlockAttributeEntity(ShellyBlockEntity, Entity):
         self.attribute = attribute
         self.entity_description = description
 
+        if (
+            channel_name := get_block_channel_name(coordinator.device, block)
+        ) is not None:
+            self._attr_translation_key = f"{description.translation_key or description.device_class}_with_channel_name"
+            self._attr_translation_placeholders = {"channel_name": channel_name}
+
         self._attr_unique_id: str = f"{super().unique_id}-{self.attribute}"
-        self._attr_name = get_block_entity_name(
-            coordinator.device, block, description.name
-        )
+        # self._attr_name = get_block_entity_name(
+        #    coordinator.device, block, description.name
+        # )
 
     @property
     def attribute_value(self) -> StateType:
