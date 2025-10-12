@@ -527,9 +527,17 @@ class ShellyRestAttributeEntity(CoordinatorEntity[ShellyBlockCoordinator]):
         self.block_coordinator = coordinator
         self.attribute = attribute
         self.entity_description = description
-        self._attr_name = get_block_entity_name(
-            coordinator.device, None, description.name
-        )
+
+        if (
+            channel_name := get_block_channel_name(coordinator.device, None)
+        ) is not None:
+            self._attr_translation_key = f"{description.translation_key or description.device_class}_with_channel_name"
+            self._attr_translation_placeholders = {"channel_name": channel_name}
+
+        # self._attr_name = get_block_entity_name(
+        #    coordinator.device, None, description.name
+        # )
+
         self._attr_unique_id = f"{coordinator.mac}-{attribute}"
         self._attr_device_info = get_entity_block_device_info(coordinator)
         self._last_value = None
