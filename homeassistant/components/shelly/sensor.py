@@ -59,9 +59,11 @@ from .entity import (
 )
 from .utils import (
     async_remove_orphaned_entities,
+    get_block_channel_name,
     get_blu_trv_device_info,
     get_device_entry_gen,
     get_device_uptime,
+    get_rpc_channel_name,
     get_shelly_air_lamp_life,
     get_virtual_component_unit,
     is_rpc_wifi_stations_disabled,
@@ -102,6 +104,25 @@ class RpcSensor(ShellyRpcAttributeEntity, SensorEntity):
     ) -> None:
         """Initialize select."""
         super().__init__(coordinator, key, attribute, description)
+
+        if not description.role:
+            if hasattr(self, "_attr_name"):
+                delattr(self, "_attr_name")
+
+            if (
+                channel_name := get_rpc_channel_name(coordinator.device, key)
+            ) is not None:
+                self._attr_translation_placeholders = {"channel_name": channel_name}
+
+            if "channel_name" in self.translation_placeholders and (
+                translation_key := description.translation_key
+                or (
+                    description.device_class
+                    if self._default_to_device_class_name()
+                    else None
+                )
+            ):
+                self._attr_translation_key = f"{translation_key}_with_channel_name"
 
         if self.option_map:
             self._attr_options = list(self.option_map.values())
@@ -1800,6 +1821,24 @@ class BlockSensor(ShellyBlockAttributeEntity, SensorEntity):
         """Initialize sensor."""
         super().__init__(coordinator, block, attribute, description)
 
+        if hasattr(self, "_attr_name"):
+            delattr(self, "_attr_name")
+
+        if (
+            channel_name := get_block_channel_name(coordinator.device, self.block)
+        ) is not None:
+            self._attr_translation_placeholders = {"channel_name": channel_name}
+
+        if "channel_name" in self.translation_placeholders and (
+            translation_key := description.translation_key
+            or (
+                description.device_class
+                if self._default_to_device_class_name()
+                else None
+            )
+        ):
+            self._attr_translation_key = f"{translation_key}_with_channel_name"
+
         self._attr_native_unit_of_measurement = description.native_unit_of_measurement
 
     @property
@@ -1812,6 +1851,29 @@ class RestSensor(ShellyRestAttributeEntity, SensorEntity):
     """Represent a REST sensor."""
 
     entity_description: RestSensorDescription
+
+    def __init__(
+        self,
+        coordinator: ShellyBlockCoordinator,
+        attribute: str,
+        description: RestEntityDescription,
+    ) -> None:
+        """Initialize sensor."""
+        super().__init__(coordinator, attribute, description)
+
+        if hasattr(self, "_attr_name"):
+            delattr(self, "_attr_name")
+
+        if (
+            channel_name := get_block_channel_name(coordinator.device, None)
+        ) is not None:
+            self._attr_translation_placeholders = {"channel_name": channel_name}
+            if translation_key := description.translation_key or (
+                description.device_class
+                if self._default_to_device_class_name()
+                else None
+            ):
+                self._attr_translation_key = f"{translation_key}_with_channel_name"
 
     @property
     def native_value(self) -> StateType:
@@ -1835,6 +1897,20 @@ class BlockSleepingSensor(ShellySleepingBlockAttributeEntity, RestoreSensor):
         """Initialize the sleeping sensor."""
         super().__init__(coordinator, block, attribute, description, entry)
         self.restored_data: SensorExtraStoredData | None = None
+
+        if block is not None:
+            if hasattr(self, "_attr_name"):
+                delattr(self, "_attr_name")
+            if (
+                channel_name := get_block_channel_name(coordinator.device, block)
+            ) is not None:
+                self._attr_translation_placeholders = {"channel_name": channel_name}
+                if translation_key := description.translation_key or (
+                    description.device_class
+                    if self._default_to_device_class_name()
+                    else None
+                ):
+                    self._attr_translation_key = f"{translation_key}_with_channel_name"
 
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
@@ -1880,6 +1956,23 @@ class RpcSleepingSensor(ShellySleepingRpcAttributeEntity, RestoreSensor):
         """Initialize the sleeping sensor."""
         super().__init__(coordinator, key, attribute, description, entry)
         self.restored_data: SensorExtraStoredData | None = None
+
+        if coordinator.device.initialized:
+            if not description.role:
+                if hasattr(self, "_attr_name"):
+                    delattr(self, "_attr_name")
+                if (
+                    channel_name := get_rpc_channel_name(coordinator.device, key)
+                ) is not None:
+                    self._attr_translation_placeholders = {"channel_name": channel_name}
+                    if translation_key := description.translation_key or (
+                        description.device_class
+                        if self._default_to_device_class_name()
+                        else None
+                    ):
+                        self._attr_translation_key = (
+                            f"{translation_key}_with_channel_name"
+                        )
 
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
