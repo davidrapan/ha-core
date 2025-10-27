@@ -212,6 +212,20 @@ YAML_CONFIG = {
     }
 }
 
+ASYNC_YAML_CONFIG = {
+    "sql": {
+        CONF_DB_URL: "sqlite+aiosqlite://",
+        CONF_NAME: "Get Value",
+        CONF_QUERY: "SELECT 5 as value",
+        CONF_COLUMN_NAME: "value",
+        CONF_UNIT_OF_MEASUREMENT: UnitOfInformation.MEBIBYTES,
+        CONF_UNIQUE_ID: "unique_id_12345",
+        CONF_VALUE_TEMPLATE: "{{ value }}",
+        CONF_DEVICE_CLASS: SensorDeviceClass.DATA_SIZE,
+        CONF_STATE_CLASS: SensorStateClass.MEASUREMENT,
+    }
+}
+
 YAML_CONFIG_FULL_TABLE_SCAN = {
     "sql": {
         CONF_NAME: "Get entity_id",

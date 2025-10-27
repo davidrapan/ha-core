@@ -314,8 +314,6 @@ FORBIDDEN_PACKAGE_FILES_EXCEPTIONS = {
     "lyric": {"homeassistant": {"aiolyric"}},
     # https://github.com/microBeesTech/pythonSDK/
     "microbees": {"homeassistant": {"microbeespy"}},
-    # https://github.com/tiagocoutinho/async_modbus
-    "nibe_heatpump": {"nibe": {"async-modbus"}},
     # https://github.com/ejpenney/pyobihai
     "obihai": {"homeassistant": {"pyobihai"}},
     # https://github.com/iamkubi/pydactyl
@@ -327,6 +325,8 @@ FORBIDDEN_PACKAGE_FILES_EXCEPTIONS = {
     },
     # https://github.com/smappee/pysmappee
     "smappee": {"homeassistant": {"pysmappee"}},
+    # https://github.com/aio-libs/aiomysql
+    "sql": {"homeassistant": {"aiomysql"}},
     # https://github.com/watergate-ai/watergate-local-api-python
     "watergate": {"homeassistant": {"watergate-local-api"}},
     # https://github.com/markusressel/xs1-api-client

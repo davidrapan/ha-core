@@ -5,7 +5,8 @@ from __future__ import annotations
 from datetime import timedelta
 from pathlib import Path
 import sqlite3
-from typing import Any
+import types
+from typing import Any, Self
 from unittest.mock import patch
 
 from freezegun.api import FrozenDateTimeFactory
@@ -44,6 +45,7 @@ from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 
 from . import (
+    ASYNC_YAML_CONFIG,
     YAML_CONFIG,
     YAML_CONFIG_ALL_TEMPLATES,
     YAML_CONFIG_BINARY,
@@ -255,6 +257,17 @@ async def test_invalid_url_on_update(
     class MockSession:
         """Mock session."""
 
+        def __enter__(self) -> Self:
+            return self
+
+        def __exit__(
+            self,
+            type: type[BaseException] | None,
+            value: BaseException | None,
+            traceback: types.TracebackType | None,
+        ) -> None:
+            pass
+
         def execute(self, query: Any) -> None:
             """Execute the query."""
             raise SQLAlchemyError("sqlite://homeassistant:hunter2@homeassistant.local")
@@ -277,6 +290,18 @@ async def test_query_from_yaml(recorder_mock: Recorder, hass: HomeAssistant) -> 
     """Test the SQL sensor from yaml config."""
 
     assert await async_setup_component(hass, DOMAIN, YAML_CONFIG)
+    await hass.async_block_till_done()
+
+    state = hass.states.get("sensor.get_value")
+    assert state.state == "5"
+
+
+async def test_async_query_from_yaml(
+    recorder_mock: Recorder, hass: HomeAssistant
+) -> None:
+    """Test the SQL sensor from yaml config."""
+
+    assert await async_setup_component(hass, DOMAIN, ASYNC_YAML_CONFIG)
     await hass.async_block_till_done()
 
     state = hass.states.get("sensor.get_value")
@@ -575,6 +600,31 @@ async def test_engine_is_disposed_at_stop(
     assert state.attributes["value"] == 5
 
     with patch("sqlalchemy.engine.base.Engine.dispose") as mock_engine_dispose:
+        await hass.async_stop()
+
+    assert mock_engine_dispose.call_count == 2
+
+
+async def test_async_engine_is_disposed_at_stop(
+    recorder_mock: Recorder, hass: HomeAssistant
+) -> None:
+    """Test we dispose of the engine at stop."""
+    config = {CONF_DB_URL: "sqlite+aiosqlite:///"}
+    options = {
+        CONF_QUERY: "SELECT 5 as value",
+        CONF_COLUMN_NAME: "value",
+    }
+    await init_integration(
+        hass, title="Select value SQL query", config=config, options=options
+    )
+
+    state = hass.states.get("sensor.select_value_sql_query")
+    assert state.state == "5"
+    assert state.attributes["value"] == 5
+
+    with patch(
+        "sqlalchemy.ext.asyncio.engine.AsyncEngine.dispose",
+    ) as mock_engine_dispose:
         await hass.async_stop()
 
     assert mock_engine_dispose.call_count == 2
