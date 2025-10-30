@@ -197,9 +197,11 @@ def _async_get_or_init_domain_data(hass: HomeAssistant) -> SQLData:
         """Shutdown all database engines."""
         for sessmaker in session_makers_by_db_url.values():
             if isinstance(sessmaker, async_scoped_session):
+                _LOGGER.error("Disposed async engine for shutdown 1")
                 await (await sessmaker.connection()).engine.dispose()
-            else:
-                sessmaker.connection().engine.dispose()
+                _LOGGER.error("Disposed async engine for shutdown 2")
+                raise SQLAlchemyError("Disposed async engine for shutdown")
+            sessmaker.connection().engine.dispose()
 
     cancel_shutdown = hass.bus.async_listen_once(
         EVENT_HOMEASSISTANT_STOP, _shutdown_db_engines

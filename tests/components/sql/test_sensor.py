@@ -194,18 +194,6 @@ async def test_query_on_disk_sqlite_no_result(
     ("patch_create", "url", "expected_patterns", "not_expected_patterns"),
     [
         (
-            "homeassistant.components.sql.util.sqlalchemy.create_engine",
-            "sqlite://homeassistant:hunter2@homeassistant.local",
-            ["sqlite://****:****@homeassistant.local"],
-            ["sqlite://homeassistant:hunter2@homeassistant.local"],
-        ),
-        (
-            "homeassistant.components.sql.util.sqlalchemy.create_engine",
-            "sqlite://homeassistant.local",
-            ["sqlite://homeassistant.local"],
-            [],
-        ),
-        (
             "homeassistant.components.sql.util.create_async_engine",
             "sqlite+aiosqlite://homeassistant:hunter2@homeassistant.local",
             ["sqlite+aiosqlite://****:****@homeassistant.local"],
@@ -215,6 +203,18 @@ async def test_query_on_disk_sqlite_no_result(
             "homeassistant.components.sql.util.create_async_engine",
             "sqlite+aiosqlite://homeassistant.local",
             ["sqlite+aiosqlite://homeassistant.local"],
+            [],
+        ),
+        (
+            "homeassistant.components.sql.util.sqlalchemy.create_engine",
+            "sqlite://homeassistant:hunter2@homeassistant.local",
+            ["sqlite://****:****@homeassistant.local"],
+            ["sqlite://homeassistant:hunter2@homeassistant.local"],
+        ),
+        (
+            "homeassistant.components.sql.util.sqlalchemy.create_engine",
+            "sqlite://homeassistant.local",
+            ["sqlite://homeassistant.local"],
             [],
         ),
     ],
@@ -301,7 +301,7 @@ async def test_invalid_url_on_update(
     assert "sqlite://****:****@homeassistant.local" in caplog.text
 
 
-@pytest.mark.parametrize("async_driver", [False, True])
+@pytest.mark.parametrize("async_driver", [True, False])
 async def test_query_from_yaml(
     recorder_mock: Recorder, hass: HomeAssistant, async_driver: bool
 ) -> None:
@@ -412,18 +412,6 @@ async def test_config_from_old_yaml(
     ("patch_create", "url", "expected_patterns", "not_expected_patterns"),
     [
         (
-            "homeassistant.components.sql.util.sqlalchemy.create_engine",
-            "sqlite://homeassistant:hunter2@homeassistant.local",
-            ["sqlite://****:****@homeassistant.local"],
-            ["sqlite://homeassistant:hunter2@homeassistant.local"],
-        ),
-        (
-            "homeassistant.components.sql.util.sqlalchemy.create_engine",
-            "sqlite://homeassistant.local",
-            ["sqlite://homeassistant.local"],
-            [],
-        ),
-        (
             "homeassistant.components.sql.util.create_async_engine",
             "sqlite+aiosqlite://homeassistant:hunter2@homeassistant.local",
             ["sqlite+aiosqlite://****:****@homeassistant.local"],
@@ -433,6 +421,18 @@ async def test_config_from_old_yaml(
             "homeassistant.components.sql.util.create_async_engine",
             "sqlite+aiosqlite://homeassistant.local",
             ["sqlite+aiosqlite://homeassistant.local"],
+            [],
+        ),
+        (
+            "homeassistant.components.sql.util.sqlalchemy.create_engine",
+            "sqlite://homeassistant:hunter2@homeassistant.local",
+            ["sqlite://****:****@homeassistant.local"],
+            ["sqlite://homeassistant:hunter2@homeassistant.local"],
+        ),
+        (
+            "homeassistant.components.sql.util.sqlalchemy.create_engine",
+            "sqlite://homeassistant.local",
+            ["sqlite://homeassistant.local"],
             [],
         ),
     ],
@@ -729,16 +729,16 @@ async def test_attributes_from_entry_config(
     ("config", "patch_rollback"),
     [
         (
-            {},
-            "sqlalchemy.orm.session.Session.rollback",
-        ),
-        (
             {CONF_DB_URL: "sqlite+aiosqlite:///"},
             "sqlalchemy.ext.asyncio.session.AsyncSession.rollback",
         ),
+        (
+            {},
+            "sqlalchemy.orm.session.Session.rollback",
+        ),
     ],
 )
-async def test_session_rollback_on_error(
+async def test_query_rollback_on_error(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
