@@ -119,7 +119,7 @@ async def test_query_service_rollback_on_error(
         await hass.services.async_call(
             DOMAIN,
             SERVICE_QUERY,
-            {"query": "SELECT name, age FROM users ORDER BY age", "db_url": db_url},
+            {"query": "Faulty syntax create operational issue", "db_url": db_url},
             blocking=True,
             return_response=True,
         )
