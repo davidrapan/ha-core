@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import datetime
-import decimal
 import logging
+from typing import TYPE_CHECKING
 
 from sqlalchemy.engine import Result
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import async_scoped_session
+from sqlalchemy.orm import scoped_session
 import voluptuous as vol
 
 from homeassistant.components.recorder import CONF_DB_URL, get_instance
@@ -26,6 +26,7 @@ from homeassistant.util.json import JsonValueType
 from .const import CONF_QUERY, DOMAIN
 from .util import (
     async_create_sessionmaker,
+    ensure_serializable,
     generate_lambda_stmt,
     redact_credentials,
     resolve_db_url,
@@ -70,39 +71,47 @@ async def _async_query_service(
             translation_placeholders={"db_url": redact_credentials(db_url)},
         )
 
+    def _process(result: Result) -> list[JsonValueType]:
+        rows: list[JsonValueType] = []
+        for row in result.mappings():
+            processed_row: dict[str, JsonValueType] = {}
+            for key, value in row.items():
+                processed_row[key] = ensure_serializable(value)
+            rows.append(processed_row)
+        return rows
+
     def _execute_and_convert_query() -> list[JsonValueType]:
         """Execute the query and return the results with converted types."""
-        sess: Session = sessmaker()
-        try:
-            result: Result = sess.execute(generate_lambda_stmt(query_str))
-        except SQLAlchemyError as err:
-            _LOGGER.debug(
-                "Error executing query %s: %s",
-                query_str,
-                redact_credentials(str(err)),
-            )
-            sess.rollback()
-            raise
-        else:
-            rows: list[JsonValueType] = []
-            for row in result.mappings():
-                processed_row: dict[str, JsonValueType] = {}
-                for key, value in row.items():
-                    if isinstance(value, decimal.Decimal):
-                        processed_row[key] = float(value)
-                    elif isinstance(value, datetime.date):
-                        processed_row[key] = value.isoformat()
-                    elif isinstance(value, (bytes, bytearray)):
-                        processed_row[key] = f"0x{value.hex()}"
-                    else:
-                        processed_row[key] = value
-                rows.append(processed_row)
-            return rows
-        finally:
-            sess.close()
+        if TYPE_CHECKING:
+            assert isinstance(sessmaker, scoped_session)
+        with sessmaker() as session:
+            try:
+                return _process(session.execute(generate_lambda_stmt(query_str)))
+            except SQLAlchemyError as err:
+                _LOGGER.debug(
+                    "Error executing query %s: %s",
+                    query_str,
+                    redact_credentials(str(err)),
+                )
+                session.rollback()
+                raise
 
     try:
-        if use_database_executor:
+        if isinstance(sessmaker, async_scoped_session):
+            async with sessmaker() as session:
+                try:
+                    result = _process(
+                        await session.execute(generate_lambda_stmt(query_str))
+                    )
+                except SQLAlchemyError as err:
+                    _LOGGER.debug(
+                        "Error executing query %s: %s",
+                        query_str,
+                        redact_credentials(str(err)),
+                    )
+                    await session.rollback()
+                    raise
+        elif use_database_executor:
             result = await get_instance(call.hass).async_add_executor_job(
                 _execute_and_convert_query
             )

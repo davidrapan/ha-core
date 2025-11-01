@@ -7,6 +7,7 @@ import sqlite3
 from unittest.mock import patch
 
 import pytest
+from sqlalchemy import text
 import voluptuous as vol
 from voluptuous import MultipleInvalid
 
@@ -84,6 +85,64 @@ async def test_query_service_external_db(hass: HomeAssistant, tmp_path: Path) ->
             {"name": "Alice", "age": 30},
         ]
     }
+
+
+@pytest.mark.parametrize(
+    ("async_driver", "patch_rollback"),
+    [
+        (
+            True,
+            "sqlalchemy.ext.asyncio.session.AsyncSession.rollback",
+        ),
+        (
+            False,
+            "sqlalchemy.orm.session.Session.rollback",
+        ),
+    ],
+)
+async def test_query_service_rollback_on_error(
+    hass: HomeAssistant,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    async_driver: bool,
+    patch_rollback: str,
+) -> None:
+    """Test the query service."""
+    db_path = tmp_path / "test.db"
+    db_url = f"sqlite{'+aiosqlite' if async_driver else ''}:///{db_path}"
+
+    # Create and populate the external database
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE users (name TEXT, age INTEGER)")
+    conn.execute("INSERT INTO users (name, age) VALUES ('Alice', 30), ('Bob', 25)")
+    conn.commit()
+    conn.close()
+
+    await async_setup_component(hass, DOMAIN, {})
+    await hass.async_block_till_done()
+
+    with (
+        patch(
+            "homeassistant.components.sql.services.generate_lambda_stmt",
+            return_value=text("Faulty syntax create operational issue"),
+        ),
+        pytest.raises(
+            ServiceValidationError, match="An error occurred when executing the query"
+        ),
+        patch(patch_rollback) as mock_session_rollback,
+    ):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_QUERY,
+            {"query": "SELECT name, age FROM users ORDER BY age", "db_url": db_url},
+            blocking=True,
+            return_response=True,
+        )
+
+    assert "sqlite3.OperationalError" in caplog.text
+    assert mock_session_rollback.call_count == 1
+
+    await hass.async_stop()
 
 
 async def test_query_service_data_conversion(
@@ -189,7 +248,7 @@ async def test_query_service_invalid_db_url(hass: HomeAssistant) -> None:
 
     with (
         patch(
-            "homeassistant.components.sql.util._validate_and_get_session_maker_for_db_url",
+            "homeassistant.components.sql.util._async_validate_and_get_session_maker_for_db_url",
             return_value=None,
         ),
         pytest.raises(
