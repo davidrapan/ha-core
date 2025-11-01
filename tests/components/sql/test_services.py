@@ -109,7 +109,7 @@ async def test_query_service_rollback_on_error(
     with (
         patch(
             "homeassistant.components.sql.services.generate_lambda_stmt",
-            side_effect=SQLAlchemyError("Error executing query"),
+            return_value=generate_lambda_stmt("Faulty syntax create operational issue"),
         ),
         pytest.raises(
             ServiceValidationError, match="An error occurred when executing the query"
