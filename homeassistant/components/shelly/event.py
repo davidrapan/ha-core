@@ -30,6 +30,8 @@ from .entity import ShellyBlockEntity, get_entity_rpc_device_info
 from .utils import (
     async_remove_orphaned_entities,
     async_remove_shelly_entity,
+    get_block_channel,
+    get_block_custom_name,
     get_device_entry_gen,
     get_rpc_component_name,
     get_rpc_entity_name,
@@ -195,7 +197,15 @@ class ShellyBlockEvent(ShellyBlockEntity, EventEntity):
             self._attr_event_types = list(BASIC_INPUTS_EVENTS_TYPES)
         self.entity_description = description
 
-        if hasattr(self, "_attr_name"):
+        if (
+            hasattr(self, "_attr_name")
+            and self._attr_name
+            and not get_block_custom_name(coordinator.device, block)
+        ):
+            self._attr_translation_placeholders = {
+                "input_number": get_block_channel(block)
+            }
+
             delattr(self, "_attr_name")
 
     async def async_added_to_hass(self) -> None:
