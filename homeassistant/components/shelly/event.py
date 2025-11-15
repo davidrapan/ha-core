@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import logging
 from typing import TYPE_CHECKING, Any, Final
 
 from aioshelly.ble.const import BLE_SCRIPT_NAME
@@ -41,6 +42,8 @@ from .utils import (
 )
 
 PARALLEL_UPDATES = 0
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -107,19 +110,26 @@ def _async_setup_block_entry(
         assert coordinator and coordinator.device.blocks
 
     for block in coordinator.device.blocks:
+        _LOGGER.info("Block 1 %s %s %s", block.type, block.channel, block.description)
         if (
             "inputEvent" not in block.sensor_ids
             or "inputEventCnt" not in block.sensor_ids
         ):
             continue
 
+        _LOGGER.info("Block 2 %s %s %s", block.type, block.channel, block.description)
+
         if BLOCK_EVENT.removal_condition and BLOCK_EVENT.removal_condition(
             coordinator.device.settings, block
         ):
+            _LOGGER.info("Block 3 %s %s %s", block.type, block.channel, block.description)
+
             channel = int(block.channel or 0) + 1
             unique_id = f"{coordinator.mac}-{block.description}-{channel}"
             async_remove_shelly_entity(hass, EVENT_DOMAIN, unique_id)
         else:
+            _LOGGER.info("Block 4 %s %s %s", block.type, block.channel, block.description)
+
             entities.append(ShellyBlockEvent(coordinator, block, BLOCK_EVENT))
 
     async_add_entities(entities)

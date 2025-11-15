@@ -240,10 +240,25 @@ async def test_block_event_shix3_1(
         description="input_0",
         set_state=AsyncMock(side_effect=lambda turn: {"ison": turn == "on"}),
     )
+    blocks[1] = Mock(
+        sensor_ids={
+            "inputEvent": "S",
+            "inputEventCnt": 1,
+        },
+        channel="1",
+        type="input",
+        description="input_0",
+        set_state=AsyncMock(side_effect=lambda turn: {"ison": turn == "on"}),
+    )
     monkeypatch.setattr(mock_block_device, "blocks", blocks)
     await init_integration(hass, 1, model=MODEL_I3)
 
-    assert (state := hass.states.get("event.test_name_input_1"))
+    assert (state := hass.states.get("event.test_name_tv_leds"))
+    assert state.attributes.get(ATTR_EVENT_TYPES) == unordered(
+        ["double", "long", "long_single", "single", "single_long", "triple"]
+    )
+
+    assert (state := hass.states.get("event.test_name_tv_spots"))
     assert state.attributes.get(ATTR_EVENT_TYPES) == unordered(
         ["double", "long", "long_single", "single", "single_long", "triple"]
     )
