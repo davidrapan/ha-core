@@ -49,8 +49,8 @@ async def async_setup_entry(
 class StarlinkSensorEntityDescription(SensorEntityDescription):
     """Describes a Starlink sensor entity."""
 
+    entity_class: Callable = StarlinkSensorEntity
     value_fn: Callable[[StarlinkData], datetime | StateType]
-    entity_class: Callable
 
 
 class StarlinkSensorEntity(StarlinkEntity, SensorEntity):
@@ -99,7 +99,6 @@ SENSORS: tuple[StarlinkSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfTime.MILLISECONDS,
         suggested_display_precision=0,
         value_fn=lambda data: data.status["pop_ping_latency_ms"],
-        entity_class=StarlinkSensorEntity,
     ),
     StarlinkSensorEntityDescription(
         key="azimuth",
@@ -110,7 +109,6 @@ SENSORS: tuple[StarlinkSensorEntityDescription, ...] = (
         entity_registry_enabled_default=False,
         suggested_display_precision=0,
         value_fn=lambda data: data.status["direction_azimuth"],
-        entity_class=StarlinkSensorEntity,
     ),
     StarlinkSensorEntityDescription(
         key="elevation",
@@ -121,7 +119,6 @@ SENSORS: tuple[StarlinkSensorEntityDescription, ...] = (
         entity_registry_enabled_default=False,
         suggested_display_precision=0,
         value_fn=lambda data: data.status["direction_elevation"],
-        entity_class=StarlinkSensorEntity,
     ),
     StarlinkSensorEntityDescription(
         key="uplink_throughput",
@@ -132,7 +129,6 @@ SENSORS: tuple[StarlinkSensorEntityDescription, ...] = (
         suggested_display_precision=1,
         suggested_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
         value_fn=lambda data: data.status["uplink_throughput_bps"],
-        entity_class=StarlinkSensorEntity,
     ),
     StarlinkSensorEntityDescription(
         key="downlink_throughput",
@@ -143,7 +139,6 @@ SENSORS: tuple[StarlinkSensorEntityDescription, ...] = (
         suggested_display_precision=1,
         suggested_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
         value_fn=lambda data: data.status["downlink_throughput_bps"],
-        entity_class=StarlinkSensorEntity,
     ),
     StarlinkSensorEntityDescription(
         key="last_boot_time",
@@ -153,7 +148,6 @@ SENSORS: tuple[StarlinkSensorEntityDescription, ...] = (
         value_fn=lambda data: (
             now() - timedelta(seconds=data.status["uptime"], milliseconds=-500)
         ).replace(microsecond=0),
-        entity_class=StarlinkSensorEntity,
     ),
     StarlinkSensorEntityDescription(
         key="ping_drop_rate",
@@ -161,7 +155,6 @@ SENSORS: tuple[StarlinkSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=PERCENTAGE,
         value_fn=lambda data: data.status["pop_ping_drop_rate"] * 100,
-        entity_class=StarlinkSensorEntity,
     ),
     StarlinkSensorEntityDescription(
         key="power",
@@ -170,7 +163,6 @@ SENSORS: tuple[StarlinkSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfPower.WATT,
         suggested_display_precision=0,
         value_fn=lambda data: data.consumption["latest_power"],
-        entity_class=StarlinkSensorEntity,
     ),
     StarlinkSensorEntityDescription(
         key="energy",
@@ -178,8 +170,8 @@ SENSORS: tuple[StarlinkSensorEntityDescription, ...] = (
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         suggested_display_precision=1,
-        value_fn=lambda data: data.consumption["total_energy"],
         entity_class=StarlinkAccumulationSensor,
+        value_fn=lambda data: data.consumption["total_energy"],
     ),
     StarlinkSensorEntityDescription(
         key="download",
@@ -189,8 +181,8 @@ SENSORS: tuple[StarlinkSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfInformation.BYTES,
         suggested_display_precision=1,
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
-        value_fn=lambda data: data.usage["download_usage"],
         entity_class=StarlinkAccumulationSensor,
+        value_fn=lambda data: data.usage["download_usage"],
     ),
     StarlinkSensorEntityDescription(
         key="upload",
@@ -200,7 +192,7 @@ SENSORS: tuple[StarlinkSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfInformation.BYTES,
         suggested_display_precision=1,
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
-        value_fn=lambda data: data.usage["upload_usage"],
         entity_class=StarlinkAccumulationSensor,
+        value_fn=lambda data: data.usage["upload_usage"],
     ),
 )
