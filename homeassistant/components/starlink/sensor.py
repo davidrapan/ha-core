@@ -49,7 +49,7 @@ async def async_setup_entry(
 class StarlinkSensorEntityDescription(SensorEntityDescription):
     """Describes a Starlink sensor entity."""
 
-    entity_class: Callable = StarlinkSensorEntity
+    entity_class: Callable = "StarlinkSensorEntity"
     value_fn: Callable[[StarlinkData], datetime | StateType]
 
 
