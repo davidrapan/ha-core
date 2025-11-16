@@ -354,7 +354,14 @@ async def test_rpc_sleeping_binary_sensor_with_channel_name(
     mock_rpc_device.mock_online()
     await hass.async_block_till_done(wait_background_tasks=True)
 
-    assert hass.states.get(entity_id)
+    assert (state := hass.states.get(entity_id))
+    assert state.state == STATE_OFF
+
+    mutate_rpc_device_status(monkeypatch, mock_rpc_device, "smoke:0", "alarm", True)
+    mock_rpc_device.mock_update()
+
+    assert (state := hass.states.get(entity_id))
+    assert state.state == STATE_ON
 
 
 async def test_rpc_restored_sleeping_binary_sensor(
