@@ -1,7 +1,7 @@
 """Test the Cloudflare integration."""
 
 from datetime import timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pycfdns
 import pytest
@@ -68,13 +68,15 @@ async def test_async_setup_raises_entry_auth_failed(
     assert flow["context"]["entry_id"] == entry.entry_id
 
 
-@pytest.mark.usefixtures("location_info")
-async def test_unload_entry(hass: HomeAssistant, cfupdate: MagicMock) -> None:
+async def test_unload_entry(
+    hass: HomeAssistant, cfupdate: MagicMock, location_info: Mock
+) -> None:
     """Test successful unload of entry."""
     entry = await init_integration(hass)
 
     assert len(hass.config_entries.async_entries(DOMAIN)) == 1
     assert entry.state is ConfigEntryState.LOADED
+    assert len(location_info.mock_calls) == 2
 
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
@@ -83,15 +85,18 @@ async def test_unload_entry(hass: HomeAssistant, cfupdate: MagicMock) -> None:
     assert not hass.data.get(DOMAIN)
 
 
-@pytest.mark.usefixtures("location_info")
 async def test_integration_services(
-    hass: HomeAssistant, cfupdate: MagicMock, caplog: pytest.LogCaptureFixture
+    hass: HomeAssistant,
+    cfupdate: MagicMock,
+    location_info: Mock,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test integration services."""
     instance = cfupdate.return_value
 
     entry = await init_integration(hass)
     assert entry.state is ConfigEntryState.LOADED
+    assert len(location_info.mock_calls) == 2
 
     await hass.services.async_call(
         DOMAIN,
@@ -102,18 +107,21 @@ async def test_integration_services(
     await hass.async_block_till_done()
 
     assert len(instance.update_dns_record.mock_calls) == 4
-    assert "All target records are up to date" not in caplog.text
+    assert "All records are up to date" not in caplog.text
 
 
-@pytest.mark.usefixtures("location_info")
 async def test_integration_services_with_issue(
-    hass: HomeAssistant, cfupdate: MagicMock, caplog: pytest.LogCaptureFixture
+    hass: HomeAssistant,
+    cfupdate: MagicMock,
+    location_info: Mock,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test integration services with issue."""
     instance = cfupdate.return_value
 
     entry = await init_integration(hass)
     assert entry.state is ConfigEntryState.LOADED
+    assert len(location_info.mock_calls) == 2
 
     with patch(LOCATION_PATCH_TARGET, return_value=None):
         await hass.services.async_call(
@@ -124,12 +132,14 @@ async def test_integration_services_with_issue(
         )
 
     assert len(instance.update_dns_record.mock_calls) == 2
-    assert "Could not get external IPv4 address" in caplog.text
+    assert "Could not get external IPv6 or IPv4 address" in caplog.text
 
 
-@pytest.mark.usefixtures("location_info")
 async def test_integration_services_with_nonexisting_record(
-    hass: HomeAssistant, cfupdate: MagicMock, caplog: pytest.LogCaptureFixture
+    hass: HomeAssistant,
+    cfupdate: MagicMock,
+    location_info: Mock,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test integration services."""
     instance = cfupdate.return_value
@@ -138,6 +148,7 @@ async def test_integration_services_with_nonexisting_record(
         hass, data={**ENTRY_CONFIG, CONF_RECORDS: ["nonexisting.example.com"]}
     )
     assert entry.state is ConfigEntryState.LOADED
+    assert len(location_info.mock_calls) == 2
 
     await hass.services.async_call(
         DOMAIN,
@@ -148,36 +159,124 @@ async def test_integration_services_with_nonexisting_record(
     await hass.async_block_till_done()
 
     instance.update_dns_record.assert_not_called()
-    assert "All target records are up to date" in caplog.text
+    assert "All records are up to date" in caplog.text
 
 
-@pytest.mark.usefixtures("location_info")
 async def test_integration_update_interval(
-    hass: HomeAssistant, cfupdate: MagicMock, caplog: pytest.LogCaptureFixture
+    hass: HomeAssistant,
+    cfupdate: MagicMock,
+    location_info: Mock,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test integration update interval."""
     instance = cfupdate.return_value
 
     entry = await init_integration(hass)
     assert entry.state is ConfigEntryState.LOADED
+    assert len(location_info.mock_calls) == 2
 
     async_fire_time_changed(
         hass, dt_util.utcnow() + timedelta(minutes=DEFAULT_UPDATE_INTERVAL)
     )
     await hass.async_block_till_done(wait_background_tasks=True)
-    assert len(instance.update_dns_record.mock_calls) == 2
-    assert "All target records are up to date" not in caplog.text
+    assert len(instance.list_dns_records.mock_calls) == 2
+    assert len(instance.update_dns_record.mock_calls) == 4
+    assert "All records are up to date" not in caplog.text
 
     instance.list_dns_records.side_effect = pycfdns.AuthenticationException()
     async_fire_time_changed(
         hass, dt_util.utcnow() + timedelta(minutes=DEFAULT_UPDATE_INTERVAL)
     )
     await hass.async_block_till_done(wait_background_tasks=True)
-    assert len(instance.update_dns_record.mock_calls) == 2
+    assert len(instance.list_dns_records.mock_calls) == 3
+    assert len(instance.update_dns_record.mock_calls) == 4
 
     instance.list_dns_records.side_effect = pycfdns.ComunicationException()
     async_fire_time_changed(
         hass, dt_util.utcnow() + timedelta(minutes=DEFAULT_UPDATE_INTERVAL)
     )
     await hass.async_block_till_done(wait_background_tasks=True)
-    assert len(instance.update_dns_record.mock_calls) == 2
+    assert len(instance.list_dns_records.mock_calls) == 4
+    assert len(instance.update_dns_record.mock_calls) == 4
+
+
+@pytest.mark.parametrize(
+    "type_ip_map",
+    [
+        {"AAAA": "::1", "A": "127.0.0.1"},
+        {"AAAA": "::1"},
+        {"A": "127.0.0.1"},
+    ],
+)
+async def test_integration_dual_stack_no_update(
+    hass: HomeAssistant,
+    cfupdate: MagicMock,
+    type_ip_map: dict[str, str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test integration dual stack support."""
+    with patch(
+        "homeassistant.components.cloudflare.coordinator.get_type_ip_map_from_location_info",
+        return_value=type_ip_map,
+    ):
+        instance = cfupdate.return_value
+        entry = await init_integration(hass)
+        assert entry.state is ConfigEntryState.LOADED
+        instance.update_dns_record.assert_not_called()
+        assert "All records are up to date" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("type_ip_map", "update_calls", "records_to_update"),
+    [
+        (
+            {"AAAA": "2001:db8::1", "A": "0.0.0.0"},
+            3,
+            [
+                "'type': 'AAAA', 'name': 'ha.mock.com'",
+                "'type': 'A', 'name': 'ha.mock.com'",
+                "'type': 'A', 'name': 'homeassistant.mock.com'",
+            ],
+        ),
+        (
+            {"AAAA": "2001:db8::1"},
+            1,
+            ["'type': 'AAAA', 'name': 'ha.mock.com'"],
+        ),
+        (
+            {"A": "0.0.0.0"},
+            2,
+            [
+                "'type': 'A', 'name': 'ha.mock.com'",
+                "'type': 'A', 'name': 'homeassistant.mock.com'",
+            ],
+        ),
+    ],
+)
+async def test_integration_dual_stack(
+    hass: HomeAssistant,
+    cfupdate: MagicMock,
+    type_ip_map: dict[str, str],
+    update_calls: int,
+    records_to_update: list[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test integration dual stack support."""
+    with patch(
+        "homeassistant.components.cloudflare.coordinator.get_type_ip_map_from_location_info",
+        return_value=type_ip_map,
+    ):
+        instance = cfupdate.return_value
+        entry = await init_integration(hass)
+        assert entry.state is ConfigEntryState.LOADED
+        assert len(instance.update_dns_record.mock_calls) == update_calls
+        assert "All records are up to date" not in caplog.text
+
+        async_fire_time_changed(
+            hass, dt_util.utcnow() + timedelta(minutes=DEFAULT_UPDATE_INTERVAL)
+        )
+        await hass.async_block_till_done(wait_background_tasks=True)
+
+        assert len(instance.update_dns_record.mock_calls) == update_calls * 2
+        for record in records_to_update:
+            assert caplog.text.count(record) == 4

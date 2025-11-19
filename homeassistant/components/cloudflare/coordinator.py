@@ -5,20 +5,19 @@ from __future__ import annotations
 import asyncio
 from datetime import timedelta
 from logging import getLogger
-import socket
+from typing import Self
 
 import pycfdns
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_TOKEN, CONF_ZONE
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from homeassistant.util.location import async_detect_location_info
-from homeassistant.util.network import is_ipv4_address
 
 from .const import CONF_RECORDS, DEFAULT_UPDATE_INTERVAL
+from .helpers import get_type_ip_map_from_location_info, list_dns_records
 
 _LOGGER = getLogger(__name__)
 
@@ -60,43 +59,39 @@ class CloudflareCoordinator(DataUpdateCoordinator[None]):
         except pycfdns.AuthenticationException as e:
             raise ConfigEntryAuthFailed from e
         except pycfdns.ComunicationException as e:
-            raise ConfigEntryNotReady from e
+            raise UpdateFailed("Error communicating with API") from e
 
     async def _async_update_data(self) -> None:
         """Update records."""
         _LOGGER.debug("Starting update for zone %s", self.zone["name"])
         try:
-            records = await self.client.list_dns_records(
-                zone_id=self.zone["id"], type="A"
-            )
+            records = await list_dns_records(self.client, self.zone["id"])
             _LOGGER.debug("Records: %s", records)
 
             target_records: list[str] = self.config_entry.data[CONF_RECORDS]
-
-            location_info = await async_detect_location_info(
-                async_get_clientsession(self.hass, family=socket.AF_INET)
-            )
-
-            if not location_info or not is_ipv4_address(location_info.ip):
-                raise UpdateFailed("Could not get external IPv4 address")
+            type_ip = await get_type_ip_map_from_location_info(self.hass)
+            if not type_ip:
+                raise UpdateFailed("Could not get external IPv6 or IPv4 address")
+            _LOGGER.debug("Record type to address map: %s", type_ip)
 
             filtered_records = [
                 record
                 for record in records
                 if record["name"] in target_records
-                and record["content"] != location_info.ip
+                and record["type"] in type_ip
+                and record["content"] != type_ip[record["type"]]
             ]
-
-            if len(filtered_records) == 0:
-                _LOGGER.debug("All target records are up to date")
+            if not filtered_records:
+                _LOGGER.debug("All records are up to date")
                 return
+            _LOGGER.debug("Records to update: %s", filtered_records)
 
             await asyncio.gather(
                 *[
                     self.client.update_dns_record(
                         zone_id=self.zone["id"],
                         record_id=record["id"],
-                        record_content=location_info.ip,
+                        record_content=type_ip[record["type"]],
                         record_name=record["name"],
                         record_type=record["type"],
                         record_proxied=record["proxied"],
@@ -115,7 +110,14 @@ class CloudflareCoordinator(DataUpdateCoordinator[None]):
                 f"Error updating zone {self.config_entry.data[CONF_ZONE]}"
             ) from e
 
-    async def init(self):
+    async def init(self) -> Self:
         """Asynchronously initialize an coordinator."""
         await super().async_config_entry_first_refresh()
+
+        @callback
+        def _callback() -> None:
+            """Records updated callback."""
+
+        self.config_entry.async_on_unload(self.async_add_listener(_callback, None))
+
         return self
