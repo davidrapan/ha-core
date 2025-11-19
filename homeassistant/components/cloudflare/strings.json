@@ -18,7 +18,11 @@
       },
       "records": {
         "data": {
+          "prefix": "IPv6 prefix length",
           "records": "Records"
+        },
+        "data_description": {
+          "prefix": "AAAA prefix-only updates"
         },
         "title": "Choose the records to update"
       },

@@ -16,8 +16,8 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import CONF_RECORDS, DEFAULT_UPDATE_INTERVAL
-from .helpers import get_type_ip_map_from_location_info, list_dns_records
+from .const import CONF_PREFIX, CONF_RECORDS, DEFAULT_UPDATE_INTERVAL
+from .helpers import get_ip, get_type_ip_map_from_location_info, list_dns_records
 
 _LOGGER = getLogger(__name__)
 
@@ -42,6 +42,8 @@ class CloudflareCoordinator(DataUpdateCoordinator[None]):
             name=config_entry.title,
             update_interval=timedelta(minutes=DEFAULT_UPDATE_INTERVAL),
         )
+        self.records: list[str] = self.config_entry.data[CONF_RECORDS]
+        self.prefix = int(self.config_entry.data.get(CONF_PREFIX, 128))
 
     async def _async_setup(self) -> None:
         """Set up the coordinator."""
@@ -68,7 +70,6 @@ class CloudflareCoordinator(DataUpdateCoordinator[None]):
             records = await list_dns_records(self.client, self.zone["id"])
             _LOGGER.debug("Records: %s", records)
 
-            target_records: list[str] = self.config_entry.data[CONF_RECORDS]
             type_ip = await get_type_ip_map_from_location_info(self.hass)
             if not type_ip:
                 raise UpdateFailed("Could not get external IPv6 or IPv4 address")
@@ -77,9 +78,15 @@ class CloudflareCoordinator(DataUpdateCoordinator[None]):
             filtered_records = [
                 record
                 for record in records
-                if record["name"] in target_records
+                if record["name"] in self.records
                 and record["type"] in type_ip
-                and record["content"] != type_ip[record["type"]]
+                and record["content"]
+                != get_ip(
+                    record["type"],
+                    record["content"],
+                    type_ip[record["type"]],
+                    self.prefix,
+                )
             ]
             if not filtered_records:
                 _LOGGER.debug("All records are up to date")
@@ -91,7 +98,12 @@ class CloudflareCoordinator(DataUpdateCoordinator[None]):
                     self.client.update_dns_record(
                         zone_id=self.zone["id"],
                         record_id=record["id"],
-                        record_content=type_ip[record["type"]],
+                        record_content=get_ip(
+                            record["type"],
+                            record["content"],
+                            type_ip[record["type"]],
+                            self.prefix,
+                        ),
                         record_name=record["name"],
                         record_type=record["type"],
                         record_proxied=record["proxied"],

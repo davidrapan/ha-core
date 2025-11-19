@@ -12,10 +12,10 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_API_TOKEN, CONF_ZONE
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import config_validation as cv, selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .const import CONF_RECORDS, DOMAIN
+from .const import CONF_PREFIX, CONF_RECORDS, DOMAIN
 from .helpers import get_zone_id, list_dns_records
 
 _LOGGER = logging.getLogger(__name__)
@@ -44,7 +44,14 @@ def _records_schema(records: list[pycfdns.RecordModel] | None = None) -> vol.Sch
     if records:
         records_dict = {name["name"]: name["name"] for name in records}
 
-    return vol.Schema({vol.Required(CONF_RECORDS): cv.multi_select(records_dict)})
+    data: dict = {vol.Required(CONF_RECORDS): cv.multi_select(records_dict)}
+
+    if records and (r for r in records if r["type"] == "AAAA"):
+        data[vol.Optional(CONF_PREFIX, default=128)] = selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=128)
+        )
+
+    return vol.Schema(data)
 
 
 class CloudflareConfigFlow(ConfigFlow, domain=DOMAIN):

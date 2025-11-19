@@ -1,6 +1,8 @@
 """Helpers for the CloudFlare integration."""
 
 import asyncio
+from functools import lru_cache
+import ipaddress
 import socket
 
 import pycfdns
@@ -55,3 +57,37 @@ async def get_type_ip_map_from_location_info(hass: HomeAssistant) -> dict[str, s
         )
         if i and (t := _get_type_from_ip(i.ip))
     }
+
+
+@lru_cache
+def get_ip(type: str, content: str, address: str, length: int = 128) -> str:
+    """Get IP address, handle prefix-only updates when needed."""
+    if (
+        type == "AAAA"
+        and length < 128
+        and (prefix := ipaddress.IPv6Network(f"::/{length}"))
+    ):
+        return str(
+            ipaddress.IPv6Address(
+                (
+                    int.from_bytes(
+                        ipaddress.IPv6Address(
+                            (
+                                int.from_bytes(ipaddress.IPv6Address(address).packed)
+                                & int.from_bytes(prefix.netmask.packed)
+                            ).to_bytes(16)
+                        ).packed
+                    )
+                    | int.from_bytes(
+                        ipaddress.IPv6Address(
+                            (
+                                int.from_bytes(ipaddress.IPv6Address(content).packed)
+                                & int.from_bytes(prefix.hostmask.packed)
+                            ).to_bytes(16)
+                        ).packed
+                    )
+                ).to_bytes(16)
+            )
+        )
+
+    return address
