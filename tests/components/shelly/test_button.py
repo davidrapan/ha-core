@@ -522,6 +522,27 @@ async def test_rpc_smoke_mute_alarm_button(
     mock_rpc_device.smoke_mute_alarm.assert_called_once_with(0)
 
 
+async def test_rpc_smoke_mute_alarm_uninitialized_button(
+    hass: HomeAssistant,
+    mock_rpc_device: Mock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test RPC smoke mute alarm button."""
+    entry = await init_integration(
+        hass, 2, sleep_period=1000, model=MODEL_PLUS_SMOKE, skip_setup=True
+    )
+    entity_id = f"{BUTTON_DOMAIN}.test_name_mute_alarm"
+    monkeypatch.setitem(mock_rpc_device.status["sys"], "wakeup_period", 1000)
+    monkeypatch.setattr(mock_rpc_device, "config", {"smoke:0": {"id": 0, "name": None}})
+    monkeypatch.setattr(mock_rpc_device, "connected", False)
+    monkeypatch.setattr(mock_rpc_device, "initialized", False)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert (state := hass.states.get(entity_id))
+    assert state.state == STATE_UNAVAILABLE
+
+
 @pytest.mark.parametrize(("action", "value"), [("turn_on", True), ("turn_off", False)])
 async def test_wall_display_screen_buttons(
     hass: HomeAssistant,
