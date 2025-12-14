@@ -339,12 +339,12 @@ def _make_key(
     family: socket.AddressFamily = socket.AF_UNSPEC,
     ssl_cipher: ssl_util.SSLCipherList = ssl_util.SSLCipherList.PYTHON_DEFAULT,
     interface: str | None = None,
-) -> tuple[bool, socket.AddressFamily, ssl_util.SSLCipherList]:
+) -> tuple[bool, socket.AddressFamily, ssl_util.SSLCipherList, str | None]:
     """Make a key for connector or session pool."""
     return (verify_ssl, family, ssl_cipher, interface)
 
 
-def _socket_factory(interface: str, addr_info):
+def _socket_factory(interface: str, addr_info: Any) -> socket.socket:
     """Socket factory for binding to specific interface."""
     family, type_, proto, _, _ = addr_info
     sock = socket.socket(family=family, type=type_, proto=proto)
