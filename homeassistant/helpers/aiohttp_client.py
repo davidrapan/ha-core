@@ -188,7 +188,7 @@ def async_create_clientsession(
         auto_cleanup_method=auto_cleanup_method,
         family=family,
         ssl_cipher=ssl_cipher,
-        interface=interface
+        interface=interface,
         **kwargs,
     )
 
@@ -338,14 +338,14 @@ def _make_key(
     verify_ssl: bool = True,
     family: socket.AddressFamily = socket.AF_UNSPEC,
     ssl_cipher: ssl_util.SSLCipherList = ssl_util.SSLCipherList.PYTHON_DEFAULT,
-    interface: str | None = None
+    interface: str | None = None,
 ) -> tuple[bool, socket.AddressFamily, ssl_util.SSLCipherList]:
     """Make a key for connector or session pool."""
     return (verify_ssl, family, ssl_cipher, interface)
 
 
 def _socket_factory(interface: str, addr_info):
-    """Make a socket factory for specific interface"""
+    """Socket factory for binding to specific interface"""
     family, type_, proto, _, _ = addr_info
     sock = socket.socket(family=family, type=type_, proto=proto)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, interface.encode())
