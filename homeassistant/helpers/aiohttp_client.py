@@ -345,7 +345,7 @@ def _make_key(
 
 
 def _socket_factory(interface: str, addr_info):
-    """Socket factory for binding to specific interface"""
+    """Socket factory for binding to specific interface."""
     family, type_, proto, _, _ = addr_info
     sock = socket.socket(family=family, type=type_, proto=proto)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, interface.encode())
