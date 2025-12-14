@@ -235,7 +235,9 @@ async def test_get_clientsession_patched_close(hass: HomeAssistant) -> None:
         session = client.async_get_clientsession(hass)
 
         assert isinstance(
-            hass.data[client.DATA_CLIENTSESSION][(verify_ssl, family, ssl_cipher, None)],
+            hass.data[client.DATA_CLIENTSESSION][
+                (verify_ssl, family, ssl_cipher, None)
+            ],
             aiohttp.ClientSession,
         )
         assert isinstance(
