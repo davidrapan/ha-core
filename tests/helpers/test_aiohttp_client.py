@@ -67,10 +67,10 @@ async def test_get_clientsession_with_ssl(hass: HomeAssistant) -> None:
     family = 0
 
     client_session = hass.data[client.DATA_CLIENTSESSION][
-        (verify_ssl, family, ssl_cipher)
+        (verify_ssl, family, ssl_cipher, None)
     ]
     assert isinstance(client_session, aiohttp.ClientSession)
-    connector = hass.data[client.DATA_CONNECTOR][(verify_ssl, family, ssl_cipher)]
+    connector = hass.data[client.DATA_CONNECTOR][(verify_ssl, family, ssl_cipher, None)]
     assert isinstance(connector, aiohttp.TCPConnector)
 
 
@@ -82,15 +82,15 @@ async def test_get_clientsession_without_ssl(hass: HomeAssistant) -> None:
     family = 0
 
     client_session = hass.data[client.DATA_CLIENTSESSION][
-        (verify_ssl, family, ssl_cipher)
+        (verify_ssl, family, ssl_cipher, None)
     ]
     assert isinstance(client_session, aiohttp.ClientSession)
-    connector = hass.data[client.DATA_CONNECTOR][(verify_ssl, family, ssl_cipher)]
+    connector = hass.data[client.DATA_CONNECTOR][(verify_ssl, family, ssl_cipher, None)]
     assert isinstance(connector, aiohttp.TCPConnector)
 
 
 @pytest.mark.parametrize(
-    ("verify_ssl", "expected_family", "ssl_cipher"),
+    ("verify_ssl", "expected_family", "ssl_cipher", "interface"),
     [
         (True, socket.AF_UNSPEC, SSLCipherList.PYTHON_DEFAULT),
         (True, socket.AF_INET, SSLCipherList.PYTHON_DEFAULT),
@@ -129,11 +129,11 @@ async def test_get_clientsession(
         hass, verify_ssl=verify_ssl, family=expected_family, ssl_cipher=ssl_cipher
     )
     client_session = hass.data[client.DATA_CLIENTSESSION][
-        (verify_ssl, expected_family, ssl_cipher)
+        (verify_ssl, expected_family, ssl_cipher, None)
     ]
     assert isinstance(client_session, aiohttp.ClientSession)
     connector = hass.data[client.DATA_CONNECTOR][
-        (verify_ssl, expected_family, ssl_cipher)
+        (verify_ssl, expected_family, ssl_cipher, None)
     ]
     assert isinstance(connector, aiohttp.TCPConnector)
 
@@ -148,7 +148,7 @@ async def test_create_clientsession_with_ssl_and_cookies(hass: HomeAssistant) ->
     family = 0
 
     assert client.DATA_CLIENTSESSION not in hass.data
-    connector = hass.data[client.DATA_CONNECTOR][(verify_ssl, family, ssl_cipher)]
+    connector = hass.data[client.DATA_CONNECTOR][(verify_ssl, family, ssl_cipher, None)]
     assert isinstance(connector, aiohttp.TCPConnector)
 
 
@@ -164,7 +164,7 @@ async def test_create_clientsession_without_ssl_and_cookies(
     family = 0
 
     assert client.DATA_CLIENTSESSION not in hass.data
-    connector = hass.data[client.DATA_CONNECTOR][(verify_ssl, family, ssl_cipher)]
+    connector = hass.data[client.DATA_CONNECTOR][(verify_ssl, family, ssl_cipher, None)]
     assert isinstance(connector, aiohttp.TCPConnector)
 
 
@@ -209,11 +209,11 @@ async def test_get_clientsession_cleanup(
     )
 
     client_session = hass.data[client.DATA_CLIENTSESSION][
-        (verify_ssl, expected_family, ssl_cipher)
+        (verify_ssl, expected_family, ssl_cipher, None)
     ]
     assert isinstance(client_session, aiohttp.ClientSession)
     connector = hass.data[client.DATA_CONNECTOR][
-        (verify_ssl, expected_family, ssl_cipher)
+        (verify_ssl, expected_family, ssl_cipher, None)
     ]
     assert isinstance(connector, aiohttp.TCPConnector)
 
@@ -235,11 +235,11 @@ async def test_get_clientsession_patched_close(hass: HomeAssistant) -> None:
         session = client.async_get_clientsession(hass)
 
         assert isinstance(
-            hass.data[client.DATA_CLIENTSESSION][(verify_ssl, family, ssl_cipher)],
+            hass.data[client.DATA_CLIENTSESSION][(verify_ssl, family, ssl_cipher, None)],
             aiohttp.ClientSession,
         )
         assert isinstance(
-            hass.data[client.DATA_CONNECTOR][(verify_ssl, family, ssl_cipher)],
+            hass.data[client.DATA_CONNECTOR][(verify_ssl, family, ssl_cipher, None)],
             aiohttp.TCPConnector,
         )
 
