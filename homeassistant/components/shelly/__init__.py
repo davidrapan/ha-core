@@ -400,10 +400,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ShellyConfigEntry) -> b
     runtime_data = entry.runtime_data
 
     if runtime_data.rpc:
-        await runtime_data.rpc.shutdown()
+        await runtime_data.rpc.device_shutdown()
 
     if runtime_data.block:
-        await runtime_data.block.shutdown()
+        await runtime_data.block.device_shutdown()
 
     return await hass.config_entries.async_unload_platforms(
         entry, runtime_data.platforms
