@@ -23,13 +23,8 @@ from propcache.api import cached_property
 
 from homeassistant.components.bluetooth import async_remove_scanner
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
-from homeassistant.const import (
-    ATTR_DEVICE_ID,
-    CONF_HOST,
-    CONF_MODEL,
-    Platform,
-)
-from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
+from homeassistant.const import ATTR_DEVICE_ID, CONF_HOST, CONF_MODEL, Platform
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers import (
     area_registry as ar,
     device_registry as dr,
@@ -857,7 +852,9 @@ class ShellyRpcCoordinator(ShellyCoordinatorBase[RpcDevice]):
                 # will fail, but we don't care since we are unloading
                 # and if we setup again, we will fix anything that is
                 # in an inconsistent state at that time.
-                LOGGER.debug("Error during shutdown for Shelly device %s: %s", self.name, err)
+                LOGGER.debug(
+                    "Error during shutdown for Shelly device %s: %s", self.name, err
+                )
                 return
         await self._async_disconnected(False)
 
