@@ -11,13 +11,12 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_API_TOKEN, CONF_ZONE
-from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import config_validation as cv, selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .const import CONF_RECORDS, DOMAIN
-from .helpers import get_zone_id
+from .const import CONF_PREFIX, CONF_RECORDS, DOMAIN
+from .helpers import get_zone_id, list_dns_records
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,30 +44,14 @@ def _records_schema(records: list[pycfdns.RecordModel] | None = None) -> vol.Sch
     if records:
         records_dict = {name["name"]: name["name"] for name in records}
 
-    return vol.Schema({vol.Required(CONF_RECORDS): cv.multi_select(records_dict)})
+    data: dict = {vol.Required(CONF_RECORDS): cv.multi_select(records_dict)}
 
+    if records and (r for r in records if r["type"] == "AAAA"):
+        data[vol.Optional(CONF_PREFIX, default=128)] = selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=128)
+        )
 
-async def _validate_input(
-    hass: HomeAssistant,
-    data: dict[str, Any],
-) -> dict[str, Any]:
-    """Validate the user input allows us to connect.
-
-    Data has the keys from DATA_SCHEMA with values provided by the user.
-    """
-    zone = data.get(CONF_ZONE)
-    records: list[pycfdns.RecordModel] = []
-
-    client = pycfdns.Client(
-        api_token=data[CONF_API_TOKEN],
-        client_session=async_get_clientsession(hass),
-    )
-
-    zones = await client.list_zones()
-    if zone and (zone_id := get_zone_id(zone, zones)) is not None:
-        records = await client.list_dns_records(zone_id=zone_id, type="A")
-
-    return {"zones": zones, "records": records}
+    return vol.Schema(data)
 
 
 class CloudflareConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -81,6 +64,37 @@ class CloudflareConfigFlow(ConfigFlow, domain=DOMAIN):
         self.cloudflare_config: dict[str, Any] = {}
         self.zones: list[pycfdns.ZoneModel] | None = None
         self.records: list[pycfdns.RecordModel] | None = None
+
+    async def _async_validate_or_error(
+        self, input: dict[str, Any]
+    ) -> tuple[dict[str, list[Any]], dict[str, str]]:
+        data: dict[str, list[Any]] = {}
+        errors: dict[str, str] = {}
+
+        try:
+            zone = input.get(CONF_ZONE)
+            records: list[pycfdns.RecordModel] = []
+
+            client = pycfdns.Client(
+                api_token=input[CONF_API_TOKEN],
+                client_session=async_get_clientsession(self.hass),
+            )
+
+            zones = await client.list_zones()
+            if zone and (zone_id := get_zone_id(zone, zones)) is not None:
+                records = await list_dns_records(client, zone_id)
+
+            data = {"zones": zones, "records": records}
+
+        except pycfdns.ComunicationException:
+            errors["base"] = "cannot_connect"
+        except pycfdns.AuthenticationException:
+            errors["base"] = "invalid_auth"
+        except Exception:
+            _LOGGER.exception("Unexpected exception")
+            errors["base"] = "unknown"
+
+        return data, errors
 
     async def async_step_reauth(
         self, entry_data: Mapping[str, Any]
@@ -167,24 +181,6 @@ class CloudflareConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="records",
             data_schema=_records_schema(self.records),
         )
-
-    async def _async_validate_or_error(
-        self, config: dict[str, Any]
-    ) -> tuple[dict[str, list[Any]], dict[str, str]]:
-        errors: dict[str, str] = {}
-        info = {}
-
-        try:
-            info = await _validate_input(self.hass, config)
-        except pycfdns.ComunicationException:
-            errors["base"] = "cannot_connect"
-        except pycfdns.AuthenticationException:
-            errors["base"] = "invalid_auth"
-        except Exception:
-            _LOGGER.exception("Unexpected exception")
-            errors["base"] = "unknown"
-
-        return info, errors
 
 
 class CannotConnect(HomeAssistantError):
