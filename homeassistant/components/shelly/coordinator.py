@@ -23,14 +23,8 @@ from propcache.api import cached_property
 
 from homeassistant.components.bluetooth import async_remove_scanner
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
-from homeassistant.const import (
-    ATTR_DEVICE_ID,
-    CONF_HOST,
-    CONF_MODEL,
-    EVENT_HOMEASSISTANT_STOP,
-    Platform,
-)
-from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
+from homeassistant.const import ATTR_DEVICE_ID, CONF_HOST, CONF_MODEL, Platform
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers import (
     area_registry as ar,
     device_registry as dr,
@@ -144,10 +138,6 @@ class ShellyCoordinatorBase[_DeviceT: BlockDevice | RpcDevice](
         )
         entry.async_on_unload(self._debounced_reload.async_shutdown)
 
-        entry.async_on_unload(
-            hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, self._handle_ha_stop)
-        )
-
     @cached_property
     def configuration_url(self) -> str:
         """Return the configuration URL for the device."""
@@ -201,18 +191,19 @@ class ShellyCoordinatorBase[_DeviceT: BlockDevice | RpcDevice](
                 self.suggested_area = area.name
         self.device_id = device_entry.id
 
-    async def shutdown(self) -> None:
+    async def async_shutdown(self) -> None:
         """Shutdown the coordinator."""
-        await self.device.shutdown()
+        LOGGER.debug("Stopping Shelly device coordinator for %s", self.name)
+        await super().async_shutdown()
+        await self.device_shutdown()
 
-    async def _handle_ha_stop(self, _event: Event) -> None:
-        """Handle Home Assistant stopping."""
-        LOGGER.debug("Stopping RPC device coordinator for %s", self.name)
-        await self.shutdown()
+    async def device_shutdown(self) -> None:
+        """Shutdown Shelly device."""
+        await self.device.shutdown()
 
     async def _async_device_connect_task(self) -> bool:
         """Connect to a Shelly device task."""
-        LOGGER.debug("Connecting to Shelly Device - %s", self.name)
+        LOGGER.debug("Connecting to Shelly device - %s", self.name)
         try:
             await self.device.initialize()
             update_device_fw_info(self.hass, self.device, self.config_entry)
@@ -267,7 +258,7 @@ class ShellyCoordinatorBase[_DeviceT: BlockDevice | RpcDevice](
         # not running disconnect events since we have auth error
         # and won't be able to send commands to the device
         self.last_update_success = False
-        await self.shutdown()
+        await self.device_shutdown()
         self.config_entry.async_start_reauth(self.hass)
 
 
@@ -838,15 +829,15 @@ class ShellyRpcCoordinator(ShellyCoordinatorBase[RpcDevice]):
                 self.hass, self._async_connected(), eager_start=True
             )
 
-    async def shutdown(self) -> None:
-        """Shutdown the coordinator."""
+    async def device_shutdown(self) -> None:
+        """Shutdown Shelly device."""
         if self.device.connected:
             try:
                 if not self.sleep_period and is_rpc_ble_scanner_supported(
                     self.config_entry
                 ):
                     await async_stop_scanner(self.device)
-                await super().shutdown()
+                await super().device_shutdown()
             except InvalidAuthError:
                 self.config_entry.async_start_reauth(self.hass)
                 return
@@ -856,7 +847,9 @@ class ShellyRpcCoordinator(ShellyCoordinatorBase[RpcDevice]):
                 # will fail, but we don't care since we are unloading
                 # and if we setup again, we will fix anything that is
                 # in an inconsistent state at that time.
-                LOGGER.debug("Error during shutdown for device %s: %s", self.name, err)
+                LOGGER.debug(
+                    "Error during shutdown for Shelly device %s: %s", self.name, err
+                )
                 return
         await self._async_disconnected(False)
 

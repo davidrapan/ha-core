@@ -507,7 +507,7 @@ async def test_rpc_connection_error_during_unload(
         await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
 
-    assert "Error during shutdown for device" in caplog.text
+    assert "Error during shutdown for Shelly device" in caplog.text
     assert entry.state is ConfigEntryState.NOT_LOADED
 
 
